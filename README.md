@@ -83,6 +83,8 @@ Smart Lock berbasis Arduino Mega dan ESP32-CAM dengan fitur RFID, Keypad, dan mo
 ---
 
 ## 🎨 Desain Rangkaian
+<img width="3000" height="2389" alt="circuit_image" src="https://github.com/user-attachments/assets/5570b4f6-9d0b-4982-b275-a7e0afff0b5e" />
+
 
 ### Cirkit Designer Project
 Desain lengkap rangkaian dapat diakses di:
@@ -122,7 +124,7 @@ Project ini mencakup:
 
 ### Skema Wiring
 
-![Skema Wiring](link_gambar_skema_dari_drive)
+![Skema Wiring](https://drive.google.com/file/d/10Kjfyzpf5sxFKVhkpaYQC_wO_D3xNfjp/view?usp=sharing)
 
 *Gambar skema lengkap tersedia di Google Drive*
 
@@ -290,6 +292,9 @@ Buat 2 Event di Blynk Console:
 - **Example**: "⚠️ Unknown RFID: 12345678"
 
 ### Web Dashboard and APP Layout
+|Web|android|
+|---|-------|
+|<img width="1918" height="927" alt="Screenshot 2025-12-05 162938" src="https://github.com/user-attachments/assets/2bf12aec-424e-4113-b4d8-5a4f0dea84a5" /> | ![WhatsApp Image 2025-12-05 at 16 30 47_fa259e20](https://github.com/user-attachments/assets/28acc727-2452-4d38-a9de-ce28003bb7e7)|
 
 
 ### Mobile App Setup
@@ -515,10 +520,6 @@ ESP32 → Blynk Cloud → Mobile App/Web Dashboard
 ---
 
 ## 🎬 Demo & Hasil
-
-### 📸 Foto Rangkaian
-
-
 
 ### 📹 Video Demo
 
