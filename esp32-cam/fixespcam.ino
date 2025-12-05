@@ -8,9 +8,9 @@
  * ✅ Event names yang benar: "info" dan "warning"
  */
 
-#define BLYNK_TEMPLATE_ID "TMPL6m3ETBwXn"
-#define BLYNK_TEMPLATE_NAME "smartlock"
-#define BLYNK_AUTH_TOKEN "KQiHaUjd-9K7GLjdpmCe4giq-rFa33o6"
+#define BLYNK_TEMPLATE_ID "YOUR TEMPLATE_ID"
+#define BLYNK_TEMPLATE_NAME "YOUR_TEMPLATE"
+#define BLYNK_AUTH_TOKEN "YOUR TOKEN"
 
 #define BLYNK_PRINT Serial
 
