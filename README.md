@@ -124,7 +124,7 @@ Project ini mencakup:
 
 ### Skema Wiring
 
-![Skema Wiring](https://drive.google.com/file/d/10Kjfyzpf5sxFKVhkpaYQC_wO_D3xNfjp/view?usp=sharing)
+https://drive.google.com/file/d/10Kjfyzpf5sxFKVhkpaYQC_wO_D3xNfjp/view?usp=sharing
 
 *Gambar skema lengkap tersedia di Google Drive*
 
