@@ -1,6 +1,28 @@
 # 🔐 Smart Lock System with IoT
 
-Smart Lock berbasis Arduino Mega dan ESP32-CAM dengan fitur RFID, Keypad, dan monitoring via Blynk IoT platform.
+![C++](https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
+![Arduino](https://img.shields.io/badge/Arduino-00979D?style=for-the-badge&logo=Arduino&logoColor=white)
+![ESP32](https://img.shields.io/badge/ESP32-E7352C?style=for-the-badge&logo=espressif&logoColor=white)
+![Blynk](https://img.shields.io/badge/Blynk-2C7EF2?style=for-the-badge&logo=blynk&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+
+Smart Lock berbasis Arduino Mega dan ESP32-CAM dengan fitur RFID, Keypad, dan monitoring via Blynk IoT platform. Dilengkapi dengan **Restricted Mode** dan **PIN Check** untuk keamanan tingkat lanjut.
+
+## 🆕 What's New (v3.0)
+
+### ✨ Fitur Baru
+- 🚨 **Restricted Mode** - Mode keamanan tingkat lanjut yang otomatis aktif setelah 3x percobaan gagal
+- 🔑 **PIN Check & Display** - Validasi PIN ketat dan tampilan PIN real-time di Blynk
+- 📊 **Attempt Counter** - Penghitung percobaan akses gagal dengan indikator visual
+- 🔄 **Auto Security** - Sistem otomatis mengaktifkan Restricted Mode saat terdeteksi brute force
+
+### 🔧 Perbaikan
+- Validasi PIN lebih ketat (format dan panjang)
+- Notifikasi lebih informatif dengan alasan aktivasi Restricted Mode
+- Status display lebih jelas di Blynk dashboard
+- LED indicator untuk Restricted Mode (merah berkedip)
+
+---
 
 ## 📋 Daftar Isi
 - [Fitur Utama](#-fitur-utama)
@@ -20,29 +42,55 @@ Smart Lock berbasis Arduino Mega dan ESP32-CAM dengan fitur RFID, Keypad, dan mo
 
 ### 🔓 Metode Unlock
 - **RFID Card** - Akses cepat dengan kartu RFID terdaftar
-- **Keypad PIN** - Input PIN 4-8 digit
+- **Keypad PIN** - Input PIN 4-8 digit dengan validasi
 - **Blynk App** - Remote unlock dari smartphone
+
+### 🚨 Restricted Mode (Fitur Baru!)
+- **Auto-Activation** - Otomatis aktif setelah 3x percobaan gagal:
+  - 3x PIN salah → Restricted Mode aktif
+  - 3x RFID tidak dikenal → Restricted Mode aktif
+- **Manual Control** - Aktifkan/nonaktifkan via Blynk app (V5)
+- **Behavior** - Saat aktif:
+  - ❌ RFID dan Keypad **DISABLED**
+  - ✅ Hanya unlock via **Blynk app** yang diizinkan
+  - 🔴 LED merah berkedip sebagai indikator
+  - 📱 Notifikasi push ke smartphone
+- **Reset** - Nonaktifkan via Blynk atau setelah unlock berhasil
+
+### 🔑 PIN Check & Display (Fitur Baru!)
+- **PIN Validation** - Validasi ketat:
+  - Panjang: 4-8 digit
+  - Format: Hanya angka (0-9)
+  - Real-time check saat input
+- **PIN Display** - Tampilkan PIN saat ini di Blynk (V3)
+- **Attempt Counter** - Hitung percobaan PIN salah
+- **Security Feedback** - Tampilkan jumlah percobaan di LCD
 
 ### 🔔 Notifikasi Real-time
 - ✅ **Info Notification** - Akses berhasil (RFID/Keypad)
 - ⚠️ **Warning Notification** - Akses ditolak (Unknown RFID/Wrong PIN)
+- 🚨 **Restricted Mode Alert** - Notifikasi saat mode terbatas aktif
 - Push notification ke smartphone & web
 
 ### 📹 Monitoring
 - Live video streaming dari ESP32-CAM
-- Terminal log aktivitas
+- Terminal log aktivitas real-time
 - Status lock real-time di Blynk app
+- PIN display di dashboard Blynk
 
 ### 🔧 Manajemen PIN
-- Ganti PIN via Blynk app
+- Ganti PIN via Blynk app (V4)
 - Ganti PIN via Keypad (mode unlock)
-- Validasi PIN 4-8 digit
+- Validasi PIN 4-8 digit dengan error handling
+- Display PIN saat ini di Blynk dashboard
 
 ### 🔒 Keamanan
 - Auto-lock setelah 10 detik
 - RFID debouncing (mencegah pembacaan berulang)
-- LED indikator (Merah: Locked, Hijau: Unlocked)
+- LED indikator (Merah: Locked, Hijau: Unlocked, Merah berkedip: Restricted)
 - Buzzer feedback untuk setiap aktivitas
+- **Attempt Limiting** - Batasi percobaan akses gagal
+- **Restricted Mode** - Mode keamanan tingkat lanjut
 
 ---
 
@@ -265,13 +313,15 @@ Power Supply 12V
 
 ### Datastream Configuration
 
-| Virtual Pin | Name | Type | Default | Widget |
-|-------------|------|------|---------|--------|
-| V0 | Lock Control | Integer | 0 | Switch (0=Lock, 1=Unlock) |
-| V1 | Status | String | "LOCKED" | Label |
-| V2 | Terminal | String | - | Terminal |
-| V4 | New PIN | String | - | Text Input |
-| V5 | Security Camera | String | - | Browser Button (Stream URL) |
+| Virtual Pin | Name | Type | Default | Widget | Description |
+|-------------|------|------|---------|--------|-------------|
+| V0 | Lock Control | Integer | 0 | Switch | 0=Lock, 1=Unlock |
+| V1 | Status | String | "LOCKED" | Label | Status real-time (LOCKED/UNLOCKED/RESTRICTED) |
+| V2 | Terminal | String | - | Terminal | Log aktivitas sistem |
+| V3 | Current PIN | String | "112233" | Label | **PIN Display** - Tampilkan PIN saat ini |
+| V4 | New PIN | String | - | Text Input | Input untuk ganti PIN baru |
+| V5 | Restricted Mode | Integer | 0 | Switch | **Restricted Mode Control** (0=OFF, 1=ON) |
+| V6 | Security Camera | String | - | Browser Button | Stream URL untuk live camera |
 
 ### Event Configuration
 
@@ -445,7 +495,7 @@ Salin URL stream dan paste ke **V5 (Browser Button)** di Blynk
 ### 📹 Melihat Live Stream
 
 #### Via Blynk App
-1. Tekan button **V5 (Security Camera)**
+1. Tekan button **V6 (Security Camera)**
 2. Browser terbuka dengan stream URL
 3. Lihat live feed dari ESP32-CAM
 
@@ -454,6 +504,67 @@ Buka: `http://[IP_ESP32]:81/stream`
 
 Contoh: `http://192.168.1.100:81/stream`
 
+### 🚨 Restricted Mode
+
+#### Auto-Activation
+Restricted Mode akan **otomatis aktif** jika:
+
+1. **3x PIN Salah**
+   - Setelah 3x percobaan PIN salah
+   - LCD: "RESTRICTED MODE - Use Blynk Only!"
+   - LED merah berkedip
+   - Buzzer: 3x beep panjang
+   - Notifikasi push: "🚨 RESTRICTED MODE: 3x wrong PIN attempts"
+
+2. **3x Unknown RFID**
+   - Setelah 3x kartu RFID tidak dikenal
+   - LCD: "RESTRICTED MODE - Use Blynk Only!"
+   - LED merah berkedip
+   - Buzzer: 3x beep panjang
+   - Notifikasi push: "🚨 RESTRICTED MODE: 3x unknown RFID attempts"
+
+#### Manual Control via Blynk
+1. Buka Blynk app
+2. Toggle switch **V5 (Restricted Mode)** ke ON
+3. Sistem masuk ke Restricted Mode
+4. RFID dan Keypad otomatis disabled
+5. Hanya unlock via Blynk yang diizinkan
+
+#### Deactivate Restricted Mode
+1. Buka Blynk app
+2. Toggle switch **V5** ke OFF
+3. Sistem kembali ke Normal Mode
+4. RFID dan Keypad kembali aktif
+
+#### Behavior saat Restricted Mode
+- ❌ **RFID**: Tidak berfungsi (dibaca tapi diabaikan)
+- ❌ **Keypad**: Tidak berfungsi (menampilkan pesan "Use Blynk Only!")
+- ✅ **Blynk**: Tetap berfungsi normal
+- 🔴 **LED**: Merah berkedip sebagai indikator
+- 📱 **Notifikasi**: Push notification saat aktif/nonaktif
+
+### 🔑 PIN Check & Display
+
+#### Melihat PIN Saat Ini
+1. Buka Blynk app
+2. Lihat widget **V3 (Current PIN)**
+3. PIN akan ditampilkan: "🔑 PIN: 112233"
+4. PIN otomatis ter-update saat berubah
+
+#### Validasi PIN
+Sistem melakukan validasi ketat saat input PIN:
+- ✅ **Panjang**: Harus 4-8 digit
+- ✅ **Format**: Hanya angka (0-9)
+- ❌ **Error Handling**: 
+  - Jika < 4 atau > 8 digit → Error: "PIN must be 4-8 digits"
+  - Jika mengandung huruf/simbol → Error: "PIN must contain only numbers"
+
+#### Attempt Counter
+- Setiap percobaan PIN salah dihitung
+- Ditampilkan di LCD: "Attempt: X/3"
+- Setelah 3x gagal → Restricted Mode aktif
+- Counter reset setelah unlock berhasil
+
 ### ⚠️ Security Alerts
 
 Sistem mengirim notifikasi warning saat:
@@ -461,14 +572,23 @@ Sistem mengirim notifikasi warning saat:
 1. **Unknown RFID Card**
    - Kartu tidak terdaftar ditempelkan
    - LCD: "ACCESS DENIED! Unknown Card"
+   - LCD: "Attempt: X/3" (menampilkan counter)
    - Buzzer: long beep error
-   - Push notification: "⚠️ Unknown RFID"
+   - Push notification: "⚠️ Unknown RFID: [UID]"
+   - Setelah 3x → Restricted Mode aktif
 
 2. **Wrong PIN**
    - PIN salah diinput
    - LCD: "Wrong PIN!"
+   - LCD: "Attempt: X/3" (menampilkan counter)
    - Buzzer: error beep
-   - Push notification: "⚠️ Wrong PIN attempted"
+   - Push notification: "⚠️ Wrong PIN attempted!"
+   - Setelah 3x → Restricted Mode aktif
+
+3. **Restricted Mode Activated**
+   - Push notification: "🚨 RESTRICTED MODE: [reason]"
+   - Terminal log: Alasan aktivasi
+   - Status di Blynk: "🚨 RESTRICTED"
 
 ---
 
@@ -478,28 +598,38 @@ Sistem mengirim notifikasi warning saat:
 
 #### Commands dari ESP32 → Arduino
 ```
-UNLOCK          - Remote unlock
-LOCK            - Remote lock
-SETPIN:123456   - Set new PIN
-STATUS          - Request status
-PING            - Connection check
+UNLOCK              - Remote unlock
+LOCK                - Remote lock
+SETPIN:123456       - Set new PIN
+STATUS              - Request status
+PING                - Connection check
+GET_PIN             - Request current PIN
+RESTRICTED:ON       - Activate Restricted Mode
+RESTRICTED:OFF      - Deactivate Restricted Mode
 ```
 
 #### Response dari Arduino → ESP32
 ```
-STATUS:LOCKED           - Current status
-STATUS:UNLOCKED
-STATUS:CHANGING_PIN
+STATUS:LOCKED           - Current status (Locked)
+STATUS:UNLOCKED         - Current status (Unlocked)
+STATUS:RESTRICTED       - Current status (Restricted Mode)
+STATUS:CHANGING_PIN     - Current status (Changing PIN)
 
-EVENT:RFID_OK:31E3F216        - RFID success
-EVENT:RFID_DENIED:12345678    - RFID denied
-EVENT:KEYPAD_OK               - PIN success
-EVENT:WRONG_PIN               - PIN wrong
+EVENT:RFID_OK:31E3F216              - RFID success
+EVENT:RFID_DENIED:12345678          - RFID denied
+EVENT:KEYPAD_OK                     - PIN success
+EVENT:WRONG_PIN                     - PIN wrong
+EVENT:RESTRICTED:3x wrong PIN       - Restricted Mode activated
+EVENT:RESTRICTED_OFF                - Restricted Mode deactivated
+EVENT:PIN_CHANGED:123456            - PIN changed successfully
 
-OK:PIN_CHANGED                - Success message
-ERROR:PIN must be 4-8 digits  - Error message
+CURRENT_PIN:112233                  - Current PIN value
 
-PONG                          - Response to PING
+OK:PIN_CHANGED                      - Success message
+ERROR:PIN must be 4-8 digits        - Error message
+ERROR:PIN must be numbers only      - Error message
+
+PONG                                - Response to PING
 ```
 
 ### Blynk Communication
@@ -538,7 +668,7 @@ ESP32 → Blynk Cloud → Mobile App/Web Dashboard
 #### Arduino Mega
 ```
 ╔═══════════════════════════════════╗
-║   Arduino Mega Ready - FIXED     ║
+║   Arduino Mega - RESTRICTED MODE ║
 ╚═══════════════════════════════════╝
 
 MFRC522 Version: 0x92
@@ -548,13 +678,27 @@ Card detected: 31E3F216
 ✅ ACCESS GRANTED
 ═══════════════════════════════════
 
+═══════════════════════════════════
+❌ WRONG PIN - Access denied
+Entered: 123456
+Expected: 112233
+Wrong PIN attempts: 2/3
+═══════════════════════════════════
+
+╔════════════════════════════════════╗
+║  🚨 RESTRICTED MODE ACTIVATED!    ║
+╚════════════════════════════════════╝
+Reason: 3x wrong PIN attempts
+
+📥 From ESP32: RESTRICTED:ON
 📥 From ESP32: STATUS
 ```
 
 #### ESP32-CAM
 ```
 ╔════════════════════════════════════╗
-║  ESP32-CAM SMARTLOCK - NOTIF ONLY ║
+║  ESP32-CAM SMARTLOCK - V3         ║
+║  WITH RESTRICTED MODE              ║
 ╚════════════════════════════════════╝
 
 ✅ Camera initialized (stream only)
@@ -568,6 +712,17 @@ Card detected: 31E3F216
 🔔 Event: RFID_OK
    Data: 31E3F216
 ✅ RFID Access Granted
+
+📥 Arduino: EVENT:WRONG_PIN
+🔔 Event: WRONG_PIN
+⚠️ WRONG PIN - Sending notification...
+
+📥 Arduino: EVENT:RESTRICTED:3x wrong PIN attempts
+🔔 Event: RESTRICTED
+🚨 SYSTEM ENTERED RESTRICTED MODE!
+
+📥 Arduino: CURRENT_PIN:112233
+📌 Current PIN updated: 112233
 ```
 
 ---
@@ -647,6 +802,33 @@ Card detected: 31E3F216
 3. Pastikan ground common
 4. Cek kabel tidak putus
 
+### ❌ Problem: Restricted Mode tidak bisa dinonaktifkan
+
+**Solution:**
+1. Pastikan Blynk app terhubung
+2. Toggle switch **V5** ke OFF di Blynk
+3. Cek Serial Monitor ESP32: "RESTRICTED:OFF" terkirim
+4. Jika masih aktif, reset Arduino Mega
+5. Restricted Mode akan reset setelah restart
+
+### ❌ Problem: PIN tidak ter-update di Blynk
+
+**Solution:**
+1. Cek koneksi Serial Arduino ↔ ESP32
+2. Pastikan command "GET_PIN" terkirim dari ESP32
+3. Cek widget **V3** di Blynk sudah dikonfigurasi sebagai Label
+4. Restart ESP32-CAM untuk refresh koneksi
+5. Cek Serial Monitor: "CURRENT_PIN:..." terkirim
+
+### ❌ Problem: Restricted Mode aktif terus-menerus
+
+**Solution:**
+1. Cek apakah ada percobaan gagal yang belum di-reset
+2. Unlock via Blynk untuk reset attempt counter
+3. Atau nonaktifkan manual via Blynk (V5)
+4. Cek Serial Monitor untuk alasan aktivasi
+5. Pastikan tidak ada kartu RFID tidak dikenal yang terus dibaca
+
 ---
 
 ## 📝 Notes
@@ -656,12 +838,29 @@ Card detected: 31E3F216
 - **RFID UID Terdaftar**: `31E3F216`
 - **Auto-lock Timer**: 10 detik
 - **WiFi AP Password**: `smartlock123`
+- **Max Attempts**: 3x (untuk Restricted Mode)
+- **Restricted Mode**: Nonaktif (default)
 
 ### Keamanan
 - Ganti PIN default setelah instalasi
 - Tambahkan RFID card di array `allowedUIDs[]`
 - Simpan Auth Token dengan aman
 - Gunakan WiFi dengan password kuat
+- **Restricted Mode** memberikan perlindungan ekstra saat ada percobaan brute force
+- PIN ditampilkan di Blynk untuk kemudahan, pertimbangkan untuk mask sebagian digit jika diperlukan
+
+### Restricted Mode Behavior
+- **Auto-Activation**: Setelah 3x percobaan gagal (PIN atau RFID)
+- **Manual Control**: Via Blynk app (V5)
+- **Reset**: Unlock berhasil atau manual via Blynk
+- **LED Indicator**: Merah berkedip saat aktif
+- **Attempt Counter**: Reset setelah unlock berhasil
+
+### PIN Management
+- **Validasi**: 4-8 digit, hanya angka
+- **Display**: Tampil di Blynk (V3) secara real-time
+- **Change Methods**: Via Blynk (V4) atau Keypad (saat unlocked)
+- **Security**: Setiap perubahan PIN tercatat di terminal log
 
 ### Modifikasi
 Untuk menambah RFID card:
