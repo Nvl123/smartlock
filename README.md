@@ -343,7 +343,9 @@ Buat 2 Event di Blynk Console:
 ### Web Dashboard and APP Layout
 |Web|android|
 |---|-------|
-|<img width="1918" height="927" alt="Screenshot 2025-12-05 162938" src="https://github.com/user-attachments/assets/2bf12aec-424e-4113-b4d8-5a4f0dea84a5" /> | ![WhatsApp Image 2025-12-05 at 16 30 47_fa259e20](https://github.com/user-attachments/assets/28acc727-2452-4d38-a9de-ce28003bb7e7)|
+|<img width="1634" height="835" alt="Screenshot 2025-12-09 182500" src="https://github.com/user-attachments/assets/b8be7ac2-387d-4dec-8e70-2a1435b42ba2" />
+| ![WhatsApp Image 2025-12-09 at 18 26 11_0563c7c5](https://github.com/user-attachments/assets/6cb58d02-f781-4409-bbda-373e6c503dcc)
+|
 
 
 ### Mobile App Setup
