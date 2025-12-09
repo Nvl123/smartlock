@@ -321,7 +321,6 @@ Power Supply 12V
 | V3 | Current PIN | String | "112233" | Label | **PIN Display** - Tampilkan PIN saat ini |
 | V4 | New PIN | String | - | Text Input | Input untuk ganti PIN baru |
 | V5 | Restricted Mode | Integer | 0 | Switch | **Restricted Mode Control** (0=OFF, 1=ON) |
-| V6 | Security Camera | String | - | Browser Button | Stream URL untuk live camera |
 
 ### Event Configuration
 
