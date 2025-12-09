@@ -1,10 +1,5 @@
 /*
- * Arduino Mega - SmartLock (LOGIC FIXED)
- * 
- * PERBAIKAN:
- * ✅ Fixed: LCD tidak salah tampil saat RFID denied
- * ✅ Fixed: Terminal tidak nampil PIN baru saat RFID denied
- * ✅ Simplified: Event notification only (no photo capture)
+ * Arduino Mega - SmartLock (WITH RESTRICTED MODE)
  */
 
 #include <LiquidCrystal.h>
@@ -60,6 +55,12 @@ unsigned long lastRFIDReadTime = 0;
 String lastCardUID = "";
 unsigned long lastStatusSend = 0;
 
+// ============= RESTRICTED MODE ==================
+bool restrictedMode = false;
+int wrongPinAttempts = 0;
+int unknownRFIDAttempts = 0;
+const int MAX_ATTEMPTS = 3;
+
 enum State { LOCK, UNLOCK, CHANGE_PIN };
 State currentState = LOCK;
 
@@ -96,9 +97,10 @@ void setup() {
   delay(1000);
   showState();
   sendStatusToESP32();
+  sendCurrentPinToESP32();
   
   Serial.println("\n╔═══════════════════════════════════╗");
-  Serial.println("║   Arduino Mega Ready - FIXED     ║");
+  Serial.println("║   Arduino Mega - RESTRICTED MODE ║");
   Serial.println("╚═══════════════════════════════════╝\n");
 }
 
@@ -107,8 +109,8 @@ void loop() {
 
   updateIndicator();
 
-  // ✅ RFID hanya dicek saat LOCKED
-  if (currentState == LOCK) {
+  // ✅ RFID hanya dicek saat LOCKED dan TIDAK dalam Restricted Mode
+  if (currentState == LOCK && !restrictedMode) {
     checkRFID();
   }
 
@@ -172,6 +174,10 @@ void processESP32Command(String cmd) {
       currentState = UNLOCK;
       lastUnlockTime = millis();
       updateSolenoid();
+      
+      // Reset attempts jika unlock via Blynk
+      wrongPinAttempts = 0;
+      unknownRFIDAttempts = 0;
       
       lcd.clear();
       lcd.print("UNLOCKED!");
@@ -239,7 +245,8 @@ void processESP32Command(String cmd) {
         delay(2000);
         showState();
         
-        ESP32_SERIAL.println("OK:PIN_CHANGED");
+        ESP32_SERIAL.println("EVENT:PIN_CHANGED:" + param);
+        sendCurrentPinToESP32();
         Serial.println("✅ PIN changed to: " + param);
       } else {
         ESP32_SERIAL.println("ERROR:PIN must be numbers only");
@@ -248,6 +255,15 @@ void processESP32Command(String cmd) {
     } else {
       ESP32_SERIAL.println("ERROR:PIN must be 4-8 digits");
       Serial.println("❌ Invalid PIN length");
+    }
+  }
+  
+  // ===== TOGGLE RESTRICTED MODE dari Blynk (V5) =====
+  else if (command == "RESTRICTED") {
+    if (param == "ON") {
+      activateRestrictedMode("Manual activation via Blynk");
+    } else if (param == "OFF") {
+      deactivateRestrictedMode();
     }
   }
   
@@ -260,12 +276,19 @@ void processESP32Command(String cmd) {
   else if (command == "PING") {
     ESP32_SERIAL.println("PONG");
   }
+  
+  // ===== REQUEST CURRENT PIN =====
+  else if (command == "GET_PIN") {
+    sendCurrentPinToESP32();
+  }
 }
 
 void sendStatusToESP32() {
   String status = "STATUS:";
   
-  if (currentState == LOCK) {
+  if (restrictedMode) {
+    status += "RESTRICTED";
+  } else if (currentState == LOCK) {
     status += "LOCKED";
   } else if (currentState == UNLOCK) {
     status += "UNLOCKED";
@@ -276,8 +299,73 @@ void sendStatusToESP32() {
   ESP32_SERIAL.println(status);
 }
 
-// ============= RFID (FIXED LOGIC) =============
+void sendCurrentPinToESP32() {
+  ESP32_SERIAL.println("CURRENT_PIN:" + defaultPin);
+}
+
+// ============= RESTRICTED MODE FUNCTIONS =============
+void activateRestrictedMode(String reason) {
+  if (restrictedMode) return; // Sudah aktif
+  
+  restrictedMode = true;
+  
+  Serial.println("\n╔════════════════════════════════════╗");
+  Serial.println("║  🚨 RESTRICTED MODE ACTIVATED!    ║");
+  Serial.println("╚════════════════════════════════════╝");
+  Serial.println("Reason: " + reason);
+  Serial.println();
+  
+  lcd.clear();
+  lcd.print("RESTRICTED MODE");
+  lcd.setCursor(0, 1);
+  lcd.print("Use Blynk Only!");
+  
+  // Buzzer panjang 3x
+  for (int i = 0; i < 3; i++) {
+    tone(BUZZER_PIN, 400, 500);
+    delay(600);
+  }
+  
+  ESP32_SERIAL.println("EVENT:RESTRICTED:" + reason);
+  sendStatusToESP32();
+  
+  delay(2000);
+  showState();
+}
+
+void deactivateRestrictedMode() {
+  if (!restrictedMode) return; // Sudah non-aktif
+  
+  restrictedMode = false;
+  wrongPinAttempts = 0;
+  unknownRFIDAttempts = 0;
+  
+  Serial.println("\n╔════════════════════════════════════╗");
+  Serial.println("║  ✅ RESTRICTED MODE DEACTIVATED   ║");
+  Serial.println("╚════════════════════════════════════╝\n");
+  
+  lcd.clear();
+  lcd.print("Normal Mode");
+  lcd.setCursor(0, 1);
+  lcd.print("Restored!");
+  
+  tone(BUZZER_PIN, 1500, 300);
+  delay(300);
+  
+  ESP32_SERIAL.println("EVENT:RESTRICTED_OFF");
+  sendStatusToESP32();
+  
+  delay(1500);
+  showState();
+}
+
+// ============= RFID (WITH RESTRICTED MODE CHECK) =============
 void checkRFID() {
+  // ✅ Cek dulu apakah dalam Restricted Mode
+  if (restrictedMode) {
+    return; // Tidak proses RFID jika Restricted Mode aktif
+  }
+  
   rfid.PCD_Init();
   
   if (!rfid.PICC_IsNewCardPresent()) return;
@@ -294,7 +382,7 @@ void checkRFID() {
   Serial.print("Card detected: ");
   Serial.println(cardUID);
 
-  // Debounce - cegah baca kartu yang sama berulang kali
+  // Debounce
   if (cardUID == lastCardUID && (millis() - lastRFIDReadTime < 1500)) {
     Serial.println("Same card - ignoring (debounce)");
     Serial.println("═══════════════════════════════════\n");
@@ -320,23 +408,24 @@ void checkRFID() {
     Serial.println("✅ ACCESS GRANTED");
     Serial.println("═══════════════════════════════════\n");
     
+    // Reset attempts karena berhasil
+    unknownRFIDAttempts = 0;
+    wrongPinAttempts = 0;
+    
     currentState = UNLOCK;
     lastUnlockTime = millis();
     updateSolenoid();
     
-    // LCD tampil RFID ACCEPTED
     lcd.clear();
     lcd.print("RFID ACCEPTED!");
     lcd.setCursor(0, 1);
     lcd.print(cardUID.substring(0, 8));
     
-    // Buzzer sukses (2 beep)
     tone(BUZZER_PIN, 1200, 150);
     delay(150);
     tone(BUZZER_PIN, 1500, 150);
     delay(150);
     
-    // Kirim event ke ESP32
     ESP32_SERIAL.println("EVENT:RFID_OK:" + cardUID);
     sendStatusToESP32();
     
@@ -346,33 +435,59 @@ void checkRFID() {
   else {
     // ❌ KARTU TIDAK TERDAFTAR - DENIED
     Serial.println("❌ ACCESS DENIED - Unknown card");
+    
+    unknownRFIDAttempts++;
+    Serial.print("Unknown RFID attempts: ");
+    Serial.print(unknownRFIDAttempts);
+    Serial.print("/");
+    Serial.println(MAX_ATTEMPTS);
     Serial.println("═══════════════════════════════════\n");
     
-    // LCD tampil ACCESS DENIED (BUKAN PIN!)
     lcd.clear();
     lcd.print("ACCESS DENIED!");
     lcd.setCursor(0, 1);
-    lcd.print("Unknown Card");
+    lcd.print("Attempt: ");
+    lcd.print(unknownRFIDAttempts);
+    lcd.print("/");
+    lcd.print(MAX_ATTEMPTS);
     
-    // Buzzer error (1 long beep)
     tone(BUZZER_PIN, 400, 600);
     delay(600);
     
-    // Kirim event ke ESP32 (untuk notifikasi warning)
     ESP32_SERIAL.println("EVENT:RFID_DENIED:" + cardUID);
     
-    delay(1500);
-    showState(); // Kembali ke tampilan normal
+    // ✅ CEK APAKAH SUDAH 3X GAGAL
+    if (unknownRFIDAttempts >= MAX_ATTEMPTS) {
+      delay(1000);
+      activateRestrictedMode("3x unknown RFID attempts");
+    } else {
+      delay(1500);
+      showState();
+    }
   }
 
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
 }
 
-// ============= KEYPAD =============
+// ============= KEYPAD (WITH RESTRICTED MODE CHECK) =============
 void handleKey(char key) {
 
   if (currentState == LOCK) {
+    
+    // ✅ CEK RESTRICTED MODE - keypad tidak berfungsi
+    if (restrictedMode) {
+      lcd.clear();
+      lcd.print("RESTRICTED MODE");
+      lcd.setCursor(0, 1);
+      lcd.print("Use Blynk Only!");
+      
+      tone(BUZZER_PIN, 300, 200);
+      delay(200);
+      delay(1000);
+      showState();
+      return; // Keluar dari fungsi, keypad tidak diproses
+    }
 
     if (key == '*') {
       if (enteredPin == defaultPin) {
@@ -380,6 +495,10 @@ void handleKey(char key) {
         Serial.println("\n═══════════════════════════════════");
         Serial.println("✅ CORRECT PIN - Access granted");
         Serial.println("═══════════════════════════════════\n");
+        
+        // Reset attempts karena berhasil
+        wrongPinAttempts = 0;
+        unknownRFIDAttempts = 0;
         
         currentState = UNLOCK;
         lastUnlockTime = millis();
@@ -403,23 +522,39 @@ void handleKey(char key) {
         showState();
       } else {
         // ❌ PIN SALAH
+        wrongPinAttempts++;
+        
         Serial.println("\n═══════════════════════════════════");
         Serial.println("❌ WRONG PIN - Access denied");
         Serial.println("Entered: " + enteredPin);
         Serial.println("Expected: " + defaultPin);
+        Serial.print("Wrong PIN attempts: ");
+        Serial.print(wrongPinAttempts);
+        Serial.print("/");
+        Serial.println(MAX_ATTEMPTS);
         Serial.println("═══════════════════════════════════\n");
         
         lcd.clear(); 
         lcd.print("Wrong PIN!");
+        lcd.setCursor(0, 1);
+        lcd.print("Attempt: ");
+        lcd.print(wrongPinAttempts);
+        lcd.print("/");
+        lcd.print(MAX_ATTEMPTS);
         
         tone(BUZZER_PIN, 500, 400);
         delay(400);
         
-        // Kirim event untuk notifikasi warning
         ESP32_SERIAL.println("EVENT:WRONG_PIN");
         
-        delay(1000);
-        showState();
+        // ✅ CEK APAKAH SUDAH 3X GAGAL
+        if (wrongPinAttempts >= MAX_ATTEMPTS) {
+          delay(1000);
+          activateRestrictedMode("3x wrong PIN attempts");
+        } else {
+          delay(1500);
+          showState();
+        }
       }
       enteredPin = "";
     }
@@ -471,6 +606,8 @@ void handleKey(char key) {
       lastCardUID = "";
       lastRFIDReadTime = 0;
       
+      ESP32_SERIAL.println("EVENT:PIN_CHANGED:" + defaultPin);
+      sendCurrentPinToESP32();
       sendStatusToESP32();
       showState();
     }
@@ -492,7 +629,19 @@ void handleKey(char key) {
 }
 
 void updateIndicator() {
-  if (currentState == LOCK) {
+  if (restrictedMode) {
+    // Kedip-kedip merah saat Restricted Mode
+    static unsigned long lastBlink = 0;
+    static bool ledState = false;
+    
+    if (millis() - lastBlink > 300) {
+      ledState = !ledState;
+      digitalWrite(30, ledState ? HIGH : LOW);
+      digitalWrite(31, LOW);
+      lastBlink = millis();
+    }
+  }
+  else if (currentState == LOCK) {
     digitalWrite(30, HIGH);  // LED Merah ON
     digitalWrite(31, LOW);   // LED Hijau OFF
   }
@@ -517,7 +666,13 @@ void updateSolenoid() {
 
 void showState() {
   lcd.clear();
-  if (currentState == LOCK) {
+  
+  if (restrictedMode) {
+    lcd.print("RESTRICTED MODE");
+    lcd.setCursor(0, 1);
+    lcd.print("Use Blynk Only!");
+  }
+  else if (currentState == LOCK) {
     lcd.print("Enter PIN/Card");
     lcd.setCursor(0, 1);
     lcd.print("to unlock");

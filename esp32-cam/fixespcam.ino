@@ -1,18 +1,13 @@
 /*
  * File: SmartLock_ESP32CAM.ino
- * ESP32-CAM Smartlock - NOTIFICATION ONLY VERSION
- * 
- * PERUBAHAN:
- * ✅ Hapus semua fungsi capture foto
- * ✅ Fokus ke notifikasi warning saja
- * ✅ Event names yang benar: "info" dan "warning"
+ * ESP32-CAM Smartlock - WITH RESTRICTED MODE & PIN DISPLAY
  */
 
-#define BLYNK_TEMPLATE_ID "YOUR TEMPLATE_ID"
-#define BLYNK_TEMPLATE_NAME "YOUR_TEMPLATE"
-#define BLYNK_AUTH_TOKEN "YOUR TOKEN"
+#define BLYNK_TEMPLATE_ID "TMPL6m3ETBwXn"
+#define BLYNK_TEMPLATE_NAME "smartlock"
+#define BLYNK_AUTH_TOKEN "KQiHaUjd-9K7GLjdpmCe4giq-rFa33o6"
 
-#define BLYNK_PRINT Serial
+#define BLYNK_PRINT Serial  
 
 #include "esp_camera.h"
 #include <WiFi.h>
@@ -30,6 +25,8 @@ void setupLedFlash();
 // ============= Variables =============
 String serialBuffer = "";
 String currentStatus = "LOCKED";
+String currentPin = "112233"; // Default PIN
+bool restrictedMode = false;
 unsigned long lastPing = 0;
 unsigned long lastStatusRequest = 0;
 bool megaConnected = false;
@@ -58,13 +55,8 @@ BLYNK_WRITE(V0) {
   }
 }
 
-// V3 - Button Set PIN
-BLYNK_WRITE(V3) {
-  int buttonState = param.asInt();
-  if (buttonState == 1) {
-    Blynk.virtualWrite(V2, "[Info] Enter new PIN (4-8 digits) in text field below\n");
-  }
-}
+// V3 - Label untuk Display PIN (READ ONLY)
+// Akan diupdate otomatis dari Arduino
 
 // V4 - Text Input untuk PIN baru
 BLYNK_WRITE(V4) {
@@ -92,9 +84,26 @@ BLYNK_WRITE(V4) {
   Blynk.virtualWrite(V2, "[⏳] Setting new PIN: " + newPin + "...\n");
 }
 
+// V5 - Switch untuk Restricted Mode
+BLYNK_WRITE(V5) {
+  int switchState = param.asInt();
+  
+  if (switchState == 1) {
+    // ON - Aktifkan Restricted Mode
+    MEGA_SERIAL.println("RESTRICTED:ON");
+    Serial.println("📱 Blynk: Activating RESTRICTED MODE");
+    Blynk.virtualWrite(V2, "[🚨] Activating RESTRICTED MODE...\n");
+  } else {
+    // OFF - Nonaktifkan Restricted Mode
+    MEGA_SERIAL.println("RESTRICTED:OFF");
+    Serial.println("📱 Blynk: Deactivating RESTRICTED MODE");
+    Blynk.virtualWrite(V2, "[✅] Deactivating RESTRICTED MODE...\n");
+  }
+}
+
 BLYNK_CONNECTED() {
   blynkConnected = true;
-  Blynk.syncVirtual(V0, V4);
+  Blynk.syncVirtual(V0, V4, V5);
   
   if (cameraInitialized) {
     Blynk.virtualWrite(V2, "\n╔═══ ESP32-CAM CONNECTED ═══╗\n");
@@ -104,7 +113,10 @@ BLYNK_CONNECTED() {
     Blynk.virtualWrite(V2, "\n[System] ESP32-CAM connected\n\n");
   }
   
+  // Request PIN dan status dari Arduino
+  MEGA_SERIAL.println("GET_PIN");
   MEGA_SERIAL.println("STATUS");
+  
   Serial.println("✅ Blynk connected");
 }
 
@@ -114,7 +126,8 @@ void setup() {
   delay(100);
   
   Serial.println("\n\n╔════════════════════════════════════╗");
-  Serial.println("║  ESP32-CAM SMARTLOCK - NOTIF ONLY ║");
+  Serial.println("║  ESP32-CAM SMARTLOCK - V3         ║");
+  Serial.println("║  WITH RESTRICTED MODE              ║");
   Serial.println("╚════════════════════════════════════╝\n");
   
   // ===== CAMERA INITIALIZATION (untuk stream saja) =====
@@ -244,6 +257,7 @@ void setup() {
   timer.setInterval(1000L, checkBlynkConnection);
   
   delay(1000);
+  MEGA_SERIAL.println("GET_PIN");
   MEGA_SERIAL.println("STATUS");
   
   Serial.println("\n✅ System ready!\n");
@@ -292,6 +306,15 @@ void processMegaMessage(String msg) {
   
   if (command == "STATUS") {
     currentStatus = param;
+    
+    // Update Restricted Mode state
+    if (param == "RESTRICTED") {
+      restrictedMode = true;
+    } else {
+      // Jika status bukan RESTRICTED, matikan flag
+      // (tapi jangan ubah switch V5 otomatis)
+    }
+    
     updateBlynkStatus(param);
     megaConnected = true;
   }
@@ -313,9 +336,15 @@ void processMegaMessage(String msg) {
   else if (command == "PONG") {
     megaConnected = true;
   }
+  else if (command == "CURRENT_PIN") {
+    // Update PIN yang tersimpan di Arduino
+    currentPin = param;
+    updatePinDisplay();
+    Serial.println("📌 Current PIN updated: " + param);
+  }
 }
 
-// ============= EVENT HANDLER - NOTIFICATION ONLY =============
+// ============= EVENT HANDLER =============
 void handleEvent(String eventData) {
   int colonPos = eventData.indexOf(':');
   String eventType = eventData;
@@ -341,14 +370,13 @@ void handleEvent(String eventData) {
       Blynk.virtualWrite(V2, "Card: " + eventParam + "\n");
       Blynk.virtualWrite(V2, "═══════════════════════════\n\n");
       
-      // Event name di Blynk Console: "info"
       Blynk.logEvent("info", "Access granted - RFID: " + eventParam);
     }
     
     updateBlynkStatus("UNLOCKED");
   }
   
-  // ===== RFID DENIED - WARNING NOTIFICATION ONLY =====
+  // ===== RFID DENIED =====
   else if (eventType == "RFID_DENIED") {
     Serial.println("⚠️ RFID DENIED - Sending notification...");
     
@@ -358,7 +386,6 @@ void handleEvent(String eventData) {
       Blynk.virtualWrite(V2, "Unknown RFID: " + eventParam + "\n");
       Blynk.virtualWrite(V2, "═══════════════════════════\n\n");
       
-      // ✅ Event name di Blynk Console: "warning"
       Blynk.logEvent("warning", "⚠️ Unknown RFID: " + eventParam);
     }
   }
@@ -373,14 +400,13 @@ void handleEvent(String eventData) {
       Blynk.virtualWrite(V2, "Correct PIN entered\n");
       Blynk.virtualWrite(V2, "═══════════════════════════\n\n");
       
-      // Event name di Blynk Console: "info"
       Blynk.logEvent("info", "Access granted - Keypad PIN");
     }
     
     updateBlynkStatus("UNLOCKED");
   }
   
-  // ===== WRONG PIN - WARNING NOTIFICATION ONLY =====
+  // ===== WRONG PIN =====
   else if (eventType == "WRONG_PIN") {
     Serial.println("⚠️ WRONG PIN - Sending notification...");
     
@@ -390,10 +416,86 @@ void handleEvent(String eventData) {
       Blynk.virtualWrite(V2, "Wrong PIN attempted\n");
       Blynk.virtualWrite(V2, "═══════════════════════════\n\n");
       
-      // ✅ Event name di Blynk Console: "warning"
       Blynk.logEvent("warning", "⚠️ Wrong PIN attempted!");
     }
   }
+  
+  // ===== 🚨 RESTRICTED MODE ACTIVATED =====
+  else if (eventType == "RESTRICTED") {
+    Serial.println("🚨 SYSTEM ENTERED RESTRICTED MODE!");
+    
+    restrictedMode = true;
+    
+    if (blynkConnected) {
+      // Update switch V5 ke ON
+      Blynk.virtualWrite(V5, 1);
+      
+      Blynk.virtualWrite(V2, "\n╔═══════════════════════════╗\n");
+      Blynk.virtualWrite(V2, "🚨 RESTRICTED MODE ACTIVE!\n");
+      Blynk.virtualWrite(V2, "╚═══════════════════════════╝\n");
+      Blynk.virtualWrite(V2, "Reason: " + eventParam + "\n");
+      Blynk.virtualWrite(V2, "RFID & Keypad DISABLED\n");
+      Blynk.virtualWrite(V2, "Only unlock via Blynk app\n\n");
+      
+      // Event "info" untuk notifikasi push
+      Blynk.logEvent("info", "🚨 RESTRICTED MODE: " + eventParam);
+    }
+    
+    updateBlynkStatus("RESTRICTED");
+  }
+  
+  // ===== ✅ RESTRICTED MODE DEACTIVATED =====
+  else if (eventType == "RESTRICTED_OFF") {
+    Serial.println("✅ RESTRICTED MODE DEACTIVATED");
+    
+    restrictedMode = false;
+    
+    if (blynkConnected) {
+      // Update switch V5 ke OFF
+      Blynk.virtualWrite(V5, 0);
+      
+      Blynk.virtualWrite(V2, "\n╔═══════════════════════════╗\n");
+      Blynk.virtualWrite(V2, "✅ NORMAL MODE RESTORED\n");
+      Blynk.virtualWrite(V2, "╚═══════════════════════════╝\n");
+      Blynk.virtualWrite(V2, "RFID & Keypad re-enabled\n\n");
+      
+      Blynk.logEvent("info", "✅ Normal mode restored");
+    }
+    
+    // Status akan diupdate dari STATUS berikutnya
+  }
+  
+  // ===== PIN CHANGED =====
+  else if (eventType == "PIN_CHANGED") {
+    currentPin = eventParam;
+    updatePinDisplay();
+    
+    if (blynkConnected) {
+      Blynk.virtualWrite(V2, "[✅] PIN successfully changed!\n\n");
+    }
+  }
+}
+
+// ============= PIN DISPLAY UPDATE =============
+void updatePinDisplay() {
+  if (!blynkConnected) return;
+  
+  // Tampilkan PIN lengkap (ATAU bisa dimask sesuai kebutuhan keamanan)
+  // Opsi 1: Tampilkan semua digit
+  Blynk.virtualWrite(V3, "🔑 PIN: " + currentPin);
+  
+  // Opsi 2 (lebih aman): Mask sebagian digit
+  // String maskedPin = "";
+  // for (int i = 0; i < currentPin.length(); i++) {
+  //   if (i < 2) {
+  //     maskedPin += currentPin[i];
+  //   } else {
+  //     maskedPin += "*";
+  //   }
+  // }
+  // Blynk.virtualWrite(V3, "🔑 PIN: " + maskedPin);
+  
+  Serial.println("📌 PIN Display updated: " + currentPin);
 }
 
 // ============= BLYNK STATUS UPDATE =============
@@ -402,7 +504,12 @@ void updateBlynkStatus(String status) {
   
   currentStatus = status;
   
-  if (status == "LOCKED") {
+  if (status == "RESTRICTED") {
+    Blynk.virtualWrite(V1, "🚨 RESTRICTED");
+    Blynk.setProperty(V1, "color", "#FF0000");
+    Blynk.virtualWrite(V0, 0);
+  }
+  else if (status == "LOCKED") {
     Blynk.virtualWrite(V1, "🔒 LOCKED");
     Blynk.setProperty(V1, "color", "#D3435C");
     Blynk.virtualWrite(V0, 0);
